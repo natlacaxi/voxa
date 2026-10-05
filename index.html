@@ -322,6 +322,7 @@ footer{text-align:center;color:var(--mu);font-size:12px;padding:0 18px 30px}
       <div class="pro-grid">
         <div><span class="lab">Service de voix</span>
           <select id="prov" aria-label="Service">
+            <option value="gemini">Google Gemini · gratuit, sans carte</option>
             <option value="openai">OpenAI · voix très naturelles</option>
             <option value="elevenlabs">ElevenLabs · rendu studio</option>
             <option value="azure">Microsoft Azure · Denise &amp; Henri</option>
@@ -331,6 +332,11 @@ footer{text-align:center;color:var(--mu);font-size:12px;padding:0 18px 30px}
           <input class="inp" id="key" type="password" autocomplete="off" spellcheck="false" placeholder="Collez votre clé ici"></div>
         <div id="regionWrap" hidden><span class="lab">Région Azure</span>
           <input class="inp" id="region" type="text" value="francecentral" autocomplete="off" spellcheck="false"></div>
+        <div id="modelWrap" hidden><span class="lab">Modèle ElevenLabs</span>
+          <select id="emodel" aria-label="Modèle ElevenLabs">
+            <option value="eleven_flash_v2_5">Économique ×2 · 2× plus de texte</option>
+            <option value="eleven_multilingual_v2">Qualité maximale</option>
+          </select></div>
         <div id="vidWrap" hidden><span class="lab">ID de voix (facultatif)</span>
           <input class="inp" id="vid" type="text" autocomplete="off" spellcheck="false" placeholder="Laisser vide = voix par défaut"></div>
       </div>
@@ -85165,42 +85171,72 @@ async function synthOffline(text, gender){
 
 /* ---------- Pro · voix cloud (votre clé API) ---------- */
 const PROV = {
+  gemini:     { hint: "Clé gratuite sur aistudio.google.com/apikey avec un simple compte Google, sans carte bancaire. Limites gratuites serrées (quelques requêtes par minute et par jour). Voix : Kore (femme) / Orus (homme)." },
   openai:     { hint: "Clé sur platform.openai.com/api-keys · facturation à l'usage (quelques centimes par texte). Voix : Nova (femme) / Onyx (homme)." },
-  elevenlabs: { hint: "Clé sur elevenlabs.io · offre gratuite limitée. Voix : Rachel (femme) / Adam (homme), modèle multilingue. Vous pouvez coller l'ID d'une autre voix." },
+  elevenlabs: { hint: "Clé sur elevenlabs.io · offre gratuite limitée. Voix : Rachel (femme) / Adam (homme). « Économique » compte 2× moins de crédits par caractère. Vous pouvez coller l'ID d'une autre voix." },
   azure:      { hint: "Clé + région dans la ressource « Speech » d'Azure · quota gratuit mensuel. Voix : Denise (femme) / Henri (homme)." },
   google:     { hint: "Clé API avec « Cloud Text-to-Speech » activé · quota gratuit mensuel. Voix Neural2 : A (femme) / B (homme)." }
 };
 const CFG_KEY = "voxa-pro";
-function proCfg(){ return { prov: $("#prov").value, key: $("#key").value.trim(), region: ($("#region").value || "francecentral").trim().toLowerCase(), vid: $("#vid").value.trim() }; }
+function proCfg(){ return { prov: $("#prov").value, key: $("#key").value.trim(), region: ($("#region").value || "francecentral").trim().toLowerCase(), vid: $("#vid").value.trim(), model: $("#emodel").value }; }
 function saveCfg(){ try { if ($("#remember").checked) localStorage.setItem(CFG_KEY, JSON.stringify({ ...proCfg(), rem: 1 })); else localStorage.removeItem(CFG_KEY); } catch(e){} }
 function refreshProUI(){
   const pv = $("#prov").value; $("#hint").textContent = PROV[pv].hint;
-  $("#regionWrap").hidden = pv !== "azure"; $("#vidWrap").hidden = pv !== "elevenlabs";
+  $("#regionWrap").hidden = pv !== "azure"; $("#vidWrap").hidden = pv !== "elevenlabs"; $("#modelWrap").hidden = pv !== "elevenlabs";
 }
 (function(){
-  try { const c = JSON.parse(localStorage.getItem(CFG_KEY) || "null"); if (c) { $("#prov").value = c.prov || "openai"; $("#key").value = c.key || ""; $("#region").value = c.region || "francecentral"; $("#vid").value = c.vid || ""; } } catch(e){}
+  try { const c = JSON.parse(localStorage.getItem(CFG_KEY) || "null"); if (c) { $("#prov").value = c.prov || "openai"; $("#key").value = c.key || ""; $("#region").value = c.region || "francecentral"; $("#vid").value = c.vid || ""; if (c.model) $("#emodel").value = c.model; } } catch(e){}
   refreshProUI();
   $("#prov").addEventListener("change", () => { refreshProUI(); saveCfg(); });
-  ["#key", "#region", "#vid", "#remember"].forEach(id => $(id).addEventListener("change", saveCfg));
+  ["#key", "#region", "#vid", "#emodel", "#remember"].forEach(id => $(id).addEventListener("change", saveCfg));
 })();
 const fatal = m => { const e = new Error(m); e.fatal = true; return e; };
 function httpMsg(st, body){
   if (st === 401 || st === 403) return fatal("Clé API refusée : vérifiez la clé, la région et les droits du service.");
   if (st === 402) return fatal("Crédits insuffisants chez le service choisi.");
-  if (st === 429) return new Error("Limite ou quota atteint chez le service (réessayez plus tard).");
+  if (st === 429) { const e = new Error("Limite ou quota atteint chez le service (réessayez plus tard)."); e.retryable = true; return e; }
   if (st === 400 || st === 422) return new Error("Requête refusée par le service" + (body ? " : " + body.replace(/\s+/g, " ").slice(0, 120) : "") + ".");
   return new Error("Erreur du service (code " + st + ").");
 }
 const xmlEsc = t => t.replace(/[<>&'"]/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" }[c]));
+function wavFromPcm16(u8, sr){
+  const n = u8.length, buf = new ArrayBuffer(44 + n), v = new DataView(buf), w = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  w(0, "RIFF"); v.setUint32(4, 36 + n, true); w(8, "WAVE"); w(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, n, true);
+  new Uint8Array(buf, 44).set(u8); return buf;
+}
+async function geminiTts(text, f, key){
+  const models = ["gemini-2.5-flash-preview-tts", "gemini-3.1-flash-tts-preview"]; let lastErr;
+  for (const m of models) {
+    let res;
+    try {
+      res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + m + ":generateContent", { method: "POST", headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: f ? "Kore" : "Orus" } } } } }) });
+    } catch(e){ throw new Error("Impossible de joindre le service (réseau ou blocage du navigateur)."); }
+    if (res.status === 404) { lastErr = new Error("Modèle vocal Gemini indisponible pour le moment."); continue; }
+    if (!res.ok) {
+      let b = ""; try { b = await res.text(); } catch(e){}
+      if (res.status === 400 && /API_KEY_INVALID|API key not valid/i.test(b)) throw fatal("Clé API refusée : vérifiez la clé copiée depuis Google AI Studio.");
+      throw httpMsg(res.status, b);
+    }
+    const j = await res.json(), parts = (((j.candidates || [])[0] || {}).content || {}).parts || [], d = parts.find(p => p.inlineData && p.inlineData.data);
+    if (!d) { lastErr = new Error("Gemini n'a pas renvoyé d'audio (réessayez)."); continue; }
+    const bin = atob(d.inlineData.data), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    const rate = +((/rate=(\d+)/.exec(d.inlineData.mimeType || "") || [])[1]) || 24000;
+    return wavFromPcm16(u8, rate);
+  }
+  throw lastErr || new Error("Gemini n'a pas renvoyé d'audio.");
+}
 async function cloudTts(text, gender, cfg){
   const { prov, key } = cfg, f = gender === "f";
   if (!key) throw fatal("Ajoutez votre clé API dans les réglages « Pro ».");
+  if (prov === "gemini") return geminiTts(text, f, key);
   let req;
   if (prov === "openai") req = ["https://api.openai.com/v1/audio/speech", { method: "POST", headers: { Authorization: "Bearer " + key, "Content-Type": "application/json" },
     body: JSON.stringify({ model: "gpt-4o-mini-tts", voice: f ? "nova" : "onyx", input: text, response_format: "mp3", instructions: "Parle en français de France, d'un ton naturel, chaleureux et professionnel, avec un rythme posé." }) }];
   else if (prov === "elevenlabs") req = ["https://api.elevenlabs.io/v1/text-to-speech/" + encodeURIComponent(cfg.vid || (f ? "21m00Tcm4TlvDgDt8GFC" : "pNInz6obpgDQGcFmaJgB")) + "?output_format=mp3_44100_128",
     { method: "POST", headers: { "xi-api-key": key, "Content-Type": "application/json", Accept: "audio/mpeg" },
-      body: JSON.stringify({ text, model_id: "eleven_multilingual_v2", voice_settings: { stability: 0.5, similarity_boost: 0.75 } }) }];
+      body: JSON.stringify({ text, model_id: cfg.model || "eleven_flash_v2_5", voice_settings: { stability: 0.5, similarity_boost: 0.75 } }) }];
   else if (prov === "azure") {
     if (!/^[a-z0-9-]+$/.test(cfg.region)) throw fatal("Région Azure invalide (ex. francecentral, westeurope).");
     req = ["https://" + cfg.region + ".tts.speech.microsoft.com/cognitiveservices/v1", { method: "POST",
@@ -85220,20 +85256,27 @@ async function synthCloud(text, gender){
   const parts = []; let sr = 44100, orig = null;
   for (let i = 0; i < chunks.length; i++) {
     setStatus(chunks.length > 1 ? "Voix Pro… " + (i + 1) + " / " + chunks.length : "Voix Pro en cours…");
-    const ab = await cloudTts(chunks[i], gender, cfg);
-    if (chunks.length === 1) orig = new Blob([ab.slice(0)], { type: "audio/mpeg" });
+    let ab;
+    for (let t = 0; ; t++) {
+      try { ab = await cloudTts(chunks[i], gender, cfg); break; }
+      catch (e) {
+        if (e.retryable && t < 2) { for (let k = 22; k > 0; k--) { setStatus("Limite gratuite atteinte : nouvelle tentative dans " + k + " s…"); await new Promise(r => setTimeout(r, 1000)); } continue; }
+        throw e;
+      }
+    }
+    if (chunks.length === 1 && cfg.prov !== "gemini") orig = new Blob([ab.slice(0)], { type: "audio/mpeg" });
     let buf; try { buf = await audioCtx().decodeAudioData(ab); } catch(e){ throw new Error("Le service a renvoyé un audio illisible."); }
     sr = buf.sampleRate; parts.push(buf.getChannelData(0).slice()); setBar(10 + 90 * (i + 1) / chunks.length);
   }
   const gap = Math.round(sr * 0.12), total = parts.reduce((a, p) => a + p.length, 0) + gap * (parts.length - 1), pcm = new Float32Array(total); let o = 0;
   parts.forEach((p, i) => { pcm.set(p, o); o += p.length + (i < parts.length - 1 ? gap : 0); });
-  return { pcm, sr, orig };
+  return { pcm, sr, orig, pro: true };
 }
 $("#testKey").onclick = async () => {
   const b = $("#testKey"); b.disabled = true; const old = b.textContent; b.textContent = "Test…";
   try {
     const cfg = proCfg(), ab = await cloudTts("Bonjour ! Voici un aperçu de la voix.", state.gender, cfg);
-    const a = new Audio(URL.createObjectURL(new Blob([ab], { type: "audio/mpeg" }))); await a.play(); toast("✓ Clé valide, voix prête"); saveCfg();
+    const a = new Audio(URL.createObjectURL(new Blob([ab], { type: cfg.prov === "gemini" ? "audio/wav" : "audio/mpeg" }))); await a.play(); toast("✓ Clé valide, voix prête"); saveCfg();
   } catch(e){ toast(e.message || "Test impossible."); }
   finally { b.disabled = false; b.textContent = old; }
 };
@@ -85266,7 +85309,7 @@ async function generate(){
     item.url = URL.createObjectURL(item.blob);
     state.history.unshift(item); state.history = state.history.slice(0, 8);
     loadItem(item, true); renderHistory();
-    setBar(100); setStatus(`Prêt · ${fmtTime(pcm.length / sr)} d'audio · prêt à télécharger`); setPill("ready", res.orig ? "Voix Pro prête" : "Prêt");
+    setBar(100); setStatus(`Prêt · ${fmtTime(pcm.length / sr)} d'audio · prêt à télécharger`); setPill("ready", res.pro ? "Voix Pro prête" : "Prêt");
     setTimeout(() => $("#result").scrollIntoView({ behavior: "smooth", block: "nearest" }), 80);
   } catch (e) {
     console.error(e);
