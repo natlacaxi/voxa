@@ -309,8 +309,9 @@ footer{text-align:center;color:var(--mu);font-size:12px;padding:0 18px 30px}
       <div>
         <span class="lab">Qualité</span>
         <div class="seg" id="quality" role="group" aria-label="Qualité">
-          <button type="button" data-q="o" aria-pressed="true">🎙️ Voix de l'appareil</button>
-          <button type="button" data-q="p" aria-pressed="false">✨ Pro · cloud</button>
+          <button type="button" data-q="o" aria-pressed="true">🎙️ Appareil</button>
+          <button type="button" data-q="p" aria-pressed="false">✨ Pro</button>
+          <button type="button" data-q="b" aria-pressed="false">⚡ Basique</button>
         </div>
       </div>
     </div>
@@ -349,7 +350,7 @@ footer{text-align:center;color:var(--mu);font-size:12px;padding:0 18px 30px}
       </button>
     </div>
     <div class="status" id="status" role="status" aria-live="polite"></div>
-    <p class="note" id="note">« Écouter » lit avec la voix française de votre appareil. « Créer le fichier » en mode « Voix de l’appareil » enregistre exactement la voix que vous entendez (Chrome ou Edge sur ordinateur : choisissez « Cet onglet » et cochez « Partager l’audio de l’onglet »). Choisissez une voix « Natural » dans la liste pour le meilleur rendu. « ✨ Pro · cloud » donne des voix quasi humaines via OpenAI, ElevenLabs, Azure ou Google (votre propre clé API, connexion requise). Raccourci : Ctrl / ⌘ + Entrée.</p>
+    <p class="note" id="note">« Écouter » lit avec la voix française de votre appareil. « Créer le fichier » en mode « Appareil » enregistre exactement la voix que vous entendez (Chrome ou Edge sur ordinateur : choisissez « Cet onglet » et cochez « Partager l’audio de l’onglet »). Choisissez une voix « Natural » dans la liste pour le meilleur rendu. « Basique » crée un fichier immédiatement, partout, mais avec une voix robotique. « ✨ Pro · cloud » donne des voix quasi humaines via OpenAI, ElevenLabs, Azure ou Google (votre propre clé API, connexion requise). Raccourci : Ctrl / ⌘ + Entrée.</p>
   </section>
 
   <section class="card rise" id="result" hidden>
@@ -85243,8 +85244,8 @@ async function generate(){
   const text = txt.value.trim();
   if (!text) { toast("Saisissez d'abord un texte à lire."); txt.focus(); return; }
   if (state.quality === "o") {
-    if (canCapture()) return recordVoice();
-    toast("Enregistrement non pris en charge ici (essayez Chrome ou Edge sur ordinateur) : voix basique utilisée.");
+    if (canCapture()) { const r = await recordVoice(); if (r !== "fallback") return; }
+    else toast("Enregistrement non pris en charge ici (Chrome ou Edge sur ordinateur) : voix basique utilisée.");
   }
   stopListen();
   state.busy = true; $("#go").disabled = true; $("#goTxt").textContent = "Génération…"; setBar(3); setStatus("");
@@ -85441,46 +85442,55 @@ function fillVoiceSelect(){
 }
 function loadVoices(){ if ("speechSynthesis" in window) { frVoices = speechSynthesis.getVoices().filter(v => /^fr/i.test(v.lang)); fillVoiceSelect(); } }
 if ("speechSynthesis" in window) { loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
+function ensureVoices(){
+  return new Promise(res => {
+    loadVoices(); if (frVoices.length || !("speechSynthesis" in window)) return res();
+    let done = false; const fin = () => { if (done) return; done = true; loadVoices(); res(); };
+    try { speechSynthesis.addEventListener("voiceschanged", fin, { once: true }); } catch(e){}
+    setTimeout(fin, 1500);
+  });
+}
 function pickBrowserVoice(g){
-  const chosen = $("#bvoice").value;
-  if (chosen) { const c = frVoices.find(v => v.name === chosen); if (c) return { v: c, exact: true }; }
   const sex = v => FEM.test(v.name) ? "f" : MAS.test(v.name) ? "m" : "";
-  const L = frVoices.filter(v => sex(v) === g);
-  const best = a => a.find(v => /natural|neural|online/i.test(v.name)) || a[0];
-  if (L.length) return { v: best(L), exact: true };
-  return { v: best(frVoices.filter(v => /fr[-_]FR/i.test(v.lang))) || frVoices[0] || null, exact: false };
+  const best = a => a.find(v => /natural|neural|online/i.test(v.name)) || a.find(v => /google/i.test(v.name)) || a[0];
+  const chosen = $("#bvoice").value; let v = chosen ? (frVoices.find(x => x.name === chosen) || null) : null;
+  if (!v) { const L = frVoices.filter(x => sex(x) === g); v = L.length ? best(L) : (best(frVoices.filter(x => /fr[-_]FR/i.test(x.lang))) || frVoices[0] || null); }
+  const sx = v ? sex(v) : "";
+  return { v, pitch: (!chosen && sx && sx !== g) ? (g === "m" ? 0.62 : 1.35) : 1 };
 }
 const ICON_SPEAK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
 const ICON_STOP = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2.5"/></svg>';
 state.listening = false; state.recording = false; let listenRun = 0;
 var setListenUI = function(on){ state.listening = on; const b = $("#listen"); b.classList.toggle("on", on); b.innerHTML = (on ? ICON_STOP : ICON_SPEAK) + (on ? " Arrêter" : " Écouter"); };
 function stopListen(){ listenRun++; try { speechSynthesis.cancel(); } catch(e){} setListenUI(false); }
-function speakAll(text, v, my){
+function speakAll(text, v, my, pitch){
   return new Promise(resolve => {
-    const parts = splitText(text); let i = 0;
+    const parts = splitText(text); let i = 0, wd;
     const next = () => {
+      clearTimeout(wd);
       if (my !== listenRun) return resolve(false);
       if (i >= parts.length) return resolve(true);
-      const u = new SpeechSynthesisUtterance(parts[i++]);
-      u.lang = v ? v.lang : "fr-FR"; if (v) u.voice = v; u.rate = 1;
-      u.onend = next; u.onerror = ev => { if (ev.error === "canceled" || ev.error === "interrupted") return resolve(false); next(); };
+      const piece = parts[i++], u = new SpeechSynthesisUtterance(piece); let fired = false;
+      const go = () => { if (fired) return; fired = true; clearTimeout(wd); next(); };
+      u.lang = v ? v.lang : "fr-FR"; if (v) u.voice = v; u.rate = 1; u.pitch = pitch || 1; u.volume = 1;
+      u.onend = go;
+      u.onerror = ev => { if (fired) return; if (ev.error === "canceled" || ev.error === "interrupted") return resolve(false); go(); };
+      wd = setTimeout(() => { if (fired) return; try { speechSynthesis.cancel(); } catch(e){} go(); }, 4000 + piece.length * 130);
       speechSynthesis.speak(u);
     };
     next();
   });
 }
-function listen(){
+async function listen(){
   if (state.listening) return stopListen();
   const text = txt.value.trim();
   if (!text) { toast("Saisissez d'abord un texte à lire."); txt.focus(); return; }
   if (!("speechSynthesis" in window)) { toast("Votre navigateur ne sait pas lire à voix haute."); return; }
-  loadVoices();
-  const { v, exact } = pickBrowserVoice(state.gender);
-  if (!v) toast("Aucune voix française détectée : lecture avec la voix par défaut.");
-  else if (!exact) toast("Pas de voix " + (state.gender === "f" ? "féminine" : "masculine") + " sur cet appareil : une autre voix française est utilisée.");
+  if (!frVoices.length) await ensureVoices();
   if (!splitText(text).length) { toast("Aucun mot à lire dans ce texte."); return; }
+  const { v, pitch } = pickBrowserVoice(state.gender);
   const my = ++listenRun; speechSynthesis.cancel(); setListenUI(true);
-  speakAll(text, v, my).then(() => { if (my === listenRun) setListenUI(false); });
+  speakAll(text, v, my, pitch).then(() => { if (my === listenRun) setListenUI(false); });
 }
 $("#listen").onclick = listen;
 setListenUI(false);
@@ -85493,25 +85503,30 @@ async function recordVoice(){
   if (state.recording || state.busy) return;
   const text = txt.value.trim();
   if (!text) { toast("Saisissez d'abord un texte à lire."); txt.focus(); return; }
-  if (!canCapture()) { toast("Cet enregistrement demande Chrome ou Edge sur ordinateur."); return; }
-  loadVoices(); stopListen();
-  const { v } = pickBrowserVoice(state.gender), btn = $("#go");
+  if (!canCapture()) return "fallback";
+  if (!frVoices.length) await ensureVoices();
+  stopListen();
+  const { v, pitch } = pickBrowserVoice(state.gender), btn = $("#go");
   const reset = () => { state.recording = false; btn.disabled = false; btn.classList.remove("on"); $("#goTxt").textContent = REC_LABEL; };
+  const fb = msg => { reset(); toast(msg); return "fallback"; };
   state.recording = true; btn.disabled = true; $("#goTxt").textContent = "Autorisez le partage de l'onglet…";
   let stream;
   try {
     stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, preferCurrentTab: true, selfBrowserSurface: "include", systemAudio: "include" });
-  } catch (e) { reset(); toast(e && e.name === "NotAllowedError" ? "Partage refusé : enregistrement annulé." : "Capture du son impossible sur ce navigateur."); return; }
+  } catch (e) {
+    if (e && e.name === "NotAllowedError") { reset(); toast("Partage refusé : enregistrement annulé. Choisissez « Basique » pour un fichier sans partage."); return; }
+    return fb("Capture du son impossible ici : voix basique utilisée.");
+  }
   const tracks = stream.getAudioTracks();
-  if (!tracks.length) { stream.getTracks().forEach(t => t.stop()); reset(); setStatus("Aucun son partagé : choisissez « Cet onglet » et cochez « Partager l'audio de l'onglet ».", true); return; }
+  if (!tracks.length) { stream.getTracks().forEach(t => t.stop()); reset(); setStatus("Le son de l'onglet n'est pas partagé : relancez, choisissez « Cet onglet » et cochez « Partager l'audio de l'onglet » (ou utilisez « Basique »).", true); return; }
   stream.getVideoTracks().forEach(t => t.stop());
   const rec = new MediaRecorder(new MediaStream(tracks)), chunks = [];
   rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
   const stopped = new Promise(r => { rec.onstop = r; });
-  const my = ++listenRun; setListenUI(true); btn.classList.add("on"); btn.disabled = false; btn.disabled = true;
+  const my = ++listenRun; setListenUI(true); btn.classList.add("on");
   $("#goTxt").textContent = "Enregistrement… restez sur cet onglet"; setStatus("Enregistrement de la voix en cours…");
   rec.start(); await new Promise(r => setTimeout(r, 350));
-  const ok = await speakAll(text, v, my);
+  const ok = await speakAll(text, v, my, pitch);
   await new Promise(r => setTimeout(r, 600)); rec.stop(); await stopped; tracks.forEach(t => t.stop()); setListenUI(false); reset();
   if (!ok) { setStatus("Enregistrement interrompu."); return; }
   try {
@@ -85519,7 +85534,7 @@ async function recordVoice(){
     const n = buf.length, ch = buf.numberOfChannels, raw = new Float32Array(n);
     for (let c = 0; c < ch; c++) { const d = buf.getChannelData(c); for (let i = 0; i < n; i++) raw[i] += d[i] / ch; }
     let peak = 0; for (let i = 0; i < n; i++) { const a = Math.abs(raw[i]); if (a > peak) peak = a; }
-    if (peak < 0.01) { setStatus("Aucun son capté : cette voix n'est pas enregistrable. Choisissez une voix « Natural » (Edge) ou « Google français » (Chrome), ou utilisez le mode Pro.", true); return; }
+    if (peak < 0.01) return fb("Cette voix ne peut pas être enregistrée sur cet appareil : voix basique utilisée. Essayez une voix ✨ Natural ou le mode Pro.");
     const thr = peak * 0.04, pad = Math.round(buf.sampleRate * 0.15); let a0 = 0, b0 = n - 1;
     while (a0 < n && Math.abs(raw[a0]) < thr) a0++; while (b0 > a0 && Math.abs(raw[b0]) < thr) b0--;
     const pcm = raw.slice(Math.max(0, a0 - pad), Math.min(n, b0 + pad)), k = 0.95 / peak; for (let i = 0; i < pcm.length; i++) pcm[i] *= k;
@@ -85529,7 +85544,7 @@ async function recordVoice(){
     loadItem(item, false); renderHistory();
     setStatus("Voix de l'appareil enregistrée · " + fmtTime(pcm.length / sr) + " · prête à télécharger"); setPill("ready", "Enregistré");
     setTimeout(() => $("#result").scrollIntoView({ behavior: "smooth", block: "nearest" }), 80);
-  } catch (e) { console.error(e); setStatus("L'enregistrement est illisible, réessayez.", true); }
+  } catch (e) { console.error(e); return fb("Enregistrement illisible : voix basique utilisée."); }
 }
 
 /* ---------- Animations : curseur glissant, égaliseur, révélations ---------- */
