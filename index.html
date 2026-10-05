@@ -108,6 +108,14 @@ body{transition:background .4s,color .4s}
 .chk{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mu);cursor:pointer}
 .chk input{accent-color:var(--a);width:16px;height:16px}
 
+.devvoice{margin-top:16px}
+.rec{grid-column:1/-1;display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 18px;border-radius:16px;font-weight:700;font-size:15px;background:var(--field);border:1px dashed var(--b);color:var(--tx);transition:transform .15s,border-color .2s,background .2s}
+.rec:hover:not(:disabled){border-color:var(--a);background:rgba(255,95,162,.08)}.rec:active:not(:disabled){transform:scale(.985)}
+.rec:disabled{opacity:.6;cursor:progress}
+.rec i{width:12px;height:12px;border-radius:50%;background:#ff4d6d;box-shadow:0 0 0 0 rgba(255,77,109,.6);flex:none}
+.rec.on i{animation:recp 1.1s infinite}
+@keyframes recp{70%{box-shadow:0 0 0 10px rgba(255,77,109,0)}100%{box-shadow:0 0 0 0 rgba(255,77,109,0)}}
+
 /* Layout */
 .top{display:flex;align-items:center;gap:12px;max-width:920px;margin:0 auto;padding:18px 18px 6px}
 .brand{display:flex;align-items:center;gap:11px;font-weight:800;font-size:19px;letter-spacing:-.02em}
@@ -276,12 +284,14 @@ footer{text-align:center;color:var(--mu);font-size:12px;padding:0 18px 30px}
       <div>
         <span class="lab">Qualité</span>
         <div class="seg" id="quality" role="group" aria-label="Qualité">
-          <button type="button" data-q="o" aria-pressed="true">Instantané</button>
+          <button type="button" data-q="o" aria-pressed="true">🎙️ Voix de l'appareil</button>
           <button type="button" data-q="p" aria-pressed="false">✨ Pro · cloud</button>
         </div>
       </div>
     </div>
 
+    <div class="devvoice"><span class="lab">Voix de l'appareil (écoute &amp; enregistrement)</span>
+      <select id="bvoice" aria-label="Voix de l'appareil"><option value="">Auto · selon Femme / Homme</option></select></div>
     <div class="pro" id="pro"><div class="pro-in"><div class="pro-box">
       <div class="pro-grid">
         <div><span class="lab">Service de voix</span>
@@ -314,7 +324,7 @@ footer{text-align:center;color:var(--mu);font-size:12px;padding:0 18px 30px}
       </button>
     </div>
     <div class="status" id="status" role="status" aria-live="polite"></div>
-    <p class="note" id="note">« Écouter » lit tout de suite avec la voix française de votre appareil. « Créer le fichier » génère l’audio téléchargeable, sans réseau (voix Voxa intégrée, plus robotique). « ✨ Pro · cloud » donne des voix quasi humaines via OpenAI, ElevenLabs, Azure ou Google (votre propre clé API, connexion requise). Raccourci : Ctrl / ⌘ + Entrée.</p>
+    <p class="note" id="note">« Écouter » lit avec la voix française de votre appareil. « Créer le fichier » en mode « Voix de l’appareil » enregistre exactement la voix que vous entendez (Chrome ou Edge sur ordinateur : choisissez « Cet onglet » et cochez « Partager l’audio de l’onglet »). Choisissez une voix « Natural » dans la liste pour le meilleur rendu. « ✨ Pro · cloud » donne des voix quasi humaines via OpenAI, ElevenLabs, Azure ou Google (votre propre clé API, connexion requise). Raccourci : Ctrl / ⌘ + Entrée.</p>
   </section>
 
   <section class="card rise" id="result" hidden>
@@ -358,15 +368,15 @@ footer{text-align:center;color:var(--mu);font-size:12px;padding:0 18px 30px}
   </section>
 
   <section class="features">
-    <div class="feat rv"><b>🔒 Privé</b><span>Mode Instantané : tout reste sur votre appareil. Mode Pro : le texte part vers le service que vous choisissez.</span></div>
+    <div class="feat rv"><b>🔒 Privé</b><span>Mode Voix de l’appareil : tout reste sur votre appareil. Mode Pro : le texte part vers le service que vous choisissez.</span></div>
     <div class="feat rv"><b>🇫🇷 Toujours en français</b><span>Voix féminine ou masculine, accents et liaisons gérés nativement.</span></div>
     <div class="feat rv"><b>⬇️ Export universel</b><span>MP3, AAC (ADTS) ou WAV sans perte, prêts pour vos vidéos et projets.</span></div>
   </section>
   <section class="faq rv" aria-label="Questions fréquentes">
     <h2>Questions fréquentes</h2>
     <details><summary>Comment transformer du texte en MP3 avec Voxa ?</summary><p>Collez votre texte, choisissez une voix française femme ou homme, cliquez sur « Créer le fichier », puis téléchargez en MP3, AAC ou WAV.</p></details>
-    <details><summary>Voxa est-il gratuit ?</summary><p>Oui, le mode Instantané est gratuit et fonctionne sans connexion. Le mode Pro utilise votre propre clé API (OpenAI, ElevenLabs, Azure ou Google) pour des voix encore plus naturelles.</p></details>
-    <details><summary>Mon texte est-il envoyé quelque part ?</summary><p>Pas en mode Instantané : tout reste sur votre appareil. En mode Pro, le texte est envoyé au service de voix que vous avez choisi.</p></details>
+    <details><summary>Voxa est-il gratuit ?</summary><p>Oui, le mode Voix de l’appareil est gratuit (pour les meilleures voix, utilisez Edge avec les voix « Natural »). Le mode Pro utilise votre propre clé API (OpenAI, ElevenLabs, Azure ou Google) pour des voix encore plus naturelles.</p></details>
+    <details><summary>Mon texte est-il envoyé quelque part ?</summary><p>Pas en mode Voix de l’appareil : tout reste sur votre appareil. En mode Pro, le texte est envoyé au service de voix que vous avez choisi.</p></details>
   </section>
 </main>
 
@@ -85202,6 +85212,10 @@ async function generate(){
   if (state.busy) return;
   const text = txt.value.trim();
   if (!text) { toast("Saisissez d'abord un texte à lire."); txt.focus(); return; }
+  if (state.quality === "o") {
+    if (canCapture()) return recordVoice();
+    toast("Enregistrement non pris en charge ici (essayez Chrome ou Edge sur ordinateur) : voix basique utilisée.");
+  }
   stopListen();
   state.busy = true; $("#go").disabled = true; $("#goTxt").textContent = "Génération…"; setBar(3); setStatus("");
   const voiceId = state.gender;
@@ -85212,7 +85226,7 @@ async function generate(){
       catch (e) {
         if (e.fatal || /Aucun mot/.test(String(e.message))) throw e;
         console.warn("Pro indisponible, repli hors-ligne", e);
-        toast(e.message + " · version instantanée utilisée."); setBar(10);
+        toast(e.message + " · voix basique hors-ligne utilisée."); setBar(10);
       }
     }
     if (!res) { setPill("busy", "Génération…"); res = await synthOffline(text, state.gender); }
@@ -85249,7 +85263,7 @@ function loadItem(item, autoplay){
   $("#result").hidden = false;
   $("#rAvatar").textContent = v.sym;
   $("#rTitle").textContent = item.text.length > 46 ? item.text.slice(0, 46).trim() + "…" : item.text;
-  $("#rSub").textContent = `Voix ${v.label.toLowerCase()} · ${fmtTime(item.pcm.length / item.sr)} · ${Math.round(item.sr / 1000 * 10) / 10} kHz`;
+  $("#rSub").textContent = `Voix ${v.label.toLowerCase()}${item.rec ? " (appareil)" : ""} · ${fmtTime(item.pcm.length / item.sr)} · ${Math.round(item.sr / 1000 * 10) / 10} kHz`;
   const N = 140, step = Math.floor(item.pcm.length / N) || 1; peaks = [];
   for (let i = 0; i < N; i++) { let m = 0; for (let j = i * step; j < Math.min((i + 1) * step, item.pcm.length); j += 8) { const a = Math.abs(item.pcm[j]); if (a > m) m = a; } peaks.push(m); }
   $("#time").textContent = "0:00 / " + fmtTime(item.pcm.length / item.sr);
@@ -85388,9 +85402,18 @@ $("#dlBtn").onclick = () => state.current && download(state.current);
 const FEM = /am[eé]lie|audrey|aur[eé]lie|denise|[eé]loise|vivienne|marie|julie|hortense|c[eé]line|l[eé]a\b|sylvie|brigitte|charlotte|female|femme|chantal|thalita|paulina/i;
 const MAS = /thomas|daniel|henri|paul\b|antoine|r[eé]my|nicolas|guillaume|bernard|jean|male|homme|claude|mathieu|louis|hugo/i;
 let frVoices = [];
-function loadVoices(){ if ("speechSynthesis" in window) frVoices = speechSynthesis.getVoices().filter(v => /^fr/i.test(v.lang)); }
+function voiceLabel(v){ return v.name.replace(/^(Microsoft|Google) /, "").replace(/ Online \(Natural\)/i, " ✨ Natural").replace(/ - French.*$/i, "") + " · " + v.lang; }
+function fillVoiceSelect(){
+  const sel = $("#bvoice"), cur = sel.value; sel.innerHTML = "";
+  const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "Auto · selon Femme / Homme"; sel.appendChild(o0);
+  frVoices.forEach(v => { const o = document.createElement("option"); o.value = v.name; o.textContent = voiceLabel(v); sel.appendChild(o); });
+  if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+}
+function loadVoices(){ if ("speechSynthesis" in window) { frVoices = speechSynthesis.getVoices().filter(v => /^fr/i.test(v.lang)); fillVoiceSelect(); } }
 if ("speechSynthesis" in window) { loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
 function pickBrowserVoice(g){
+  const chosen = $("#bvoice").value;
+  if (chosen) { const c = frVoices.find(v => v.name === chosen); if (c) return { v: c, exact: true }; }
   const sex = v => FEM.test(v.name) ? "f" : MAS.test(v.name) ? "m" : "";
   const L = frVoices.filter(v => sex(v) === g);
   const best = a => a.find(v => /natural|neural|online/i.test(v.name)) || a[0];
@@ -85399,9 +85422,23 @@ function pickBrowserVoice(g){
 }
 const ICON_SPEAK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
 const ICON_STOP = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2.5"/></svg>';
-state.listening = false; let listenRun = 0;
+state.listening = false; state.recording = false; let listenRun = 0;
 var setListenUI = function(on){ state.listening = on; const b = $("#listen"); b.classList.toggle("on", on); b.innerHTML = (on ? ICON_STOP : ICON_SPEAK) + (on ? " Arrêter" : " Écouter"); };
 function stopListen(){ listenRun++; try { speechSynthesis.cancel(); } catch(e){} setListenUI(false); }
+function speakAll(text, v, my){
+  return new Promise(resolve => {
+    const parts = splitText(text); let i = 0;
+    const next = () => {
+      if (my !== listenRun) return resolve(false);
+      if (i >= parts.length) return resolve(true);
+      const u = new SpeechSynthesisUtterance(parts[i++]);
+      u.lang = v ? v.lang : "fr-FR"; if (v) u.voice = v; u.rate = 1;
+      u.onend = next; u.onerror = ev => { if (ev.error === "canceled" || ev.error === "interrupted") return resolve(false); next(); };
+      speechSynthesis.speak(u);
+    };
+    next();
+  });
+}
 function listen(){
   if (state.listening) return stopListen();
   const text = txt.value.trim();
@@ -85410,24 +85447,60 @@ function listen(){
   loadVoices();
   const { v, exact } = pickBrowserVoice(state.gender);
   if (!v) toast("Aucune voix française détectée : lecture avec la voix par défaut.");
-  else if (!exact) toast("Pas de voix " + (state.gender === "f" ? "féminine" : "masculine") + " sur cet appareil : voix française " + (state.gender === "f" ? "disponible" : "disponible") + " utilisée.");
-  const parts = splitText(text); if (!parts.length) { toast("Aucun mot à lire dans ce texte."); return; }
+  else if (!exact) toast("Pas de voix " + (state.gender === "f" ? "féminine" : "masculine") + " sur cet appareil : une autre voix française est utilisée.");
+  if (!splitText(text).length) { toast("Aucun mot à lire dans ce texte."); return; }
   const my = ++listenRun; speechSynthesis.cancel(); setListenUI(true);
-  let i = 0;
-  const next = () => {
-    if (my !== listenRun) return;
-    if (i >= parts.length) { setListenUI(false); return; }
-    const u = new SpeechSynthesisUtterance(parts[i++]);
-    u.lang = v ? v.lang : "fr-FR"; if (v) u.voice = v; u.rate = 1;
-    u.onend = next; u.onerror = ev => { if (ev.error === "canceled" || ev.error === "interrupted") return; next(); };
-    speechSynthesis.speak(u);
-  };
-  next();
+  speakAll(text, v, my).then(() => { if (my === listenRun) setListenUI(false); });
 }
 $("#listen").onclick = listen;
 setListenUI(false);
 document.querySelectorAll("#gender button").forEach(b => b.addEventListener("click", () => { if (state.listening) stopListen(); }));
 
+/* ---------- Enregistrer la voix de l'appareil (capture du son de l'onglet) ---------- */
+const REC_LABEL = "Créer le fichier à télécharger";
+const canCapture = () => !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia && typeof MediaRecorder !== "undefined" && "speechSynthesis" in window);
+async function recordVoice(){
+  if (state.recording || state.busy) return;
+  const text = txt.value.trim();
+  if (!text) { toast("Saisissez d'abord un texte à lire."); txt.focus(); return; }
+  if (!canCapture()) { toast("Cet enregistrement demande Chrome ou Edge sur ordinateur."); return; }
+  loadVoices(); stopListen();
+  const { v } = pickBrowserVoice(state.gender), btn = $("#go");
+  const reset = () => { state.recording = false; btn.disabled = false; btn.classList.remove("on"); $("#goTxt").textContent = REC_LABEL; };
+  state.recording = true; btn.disabled = true; $("#goTxt").textContent = "Autorisez le partage de l'onglet…";
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, preferCurrentTab: true, selfBrowserSurface: "include", systemAudio: "include" });
+  } catch (e) { reset(); toast(e && e.name === "NotAllowedError" ? "Partage refusé : enregistrement annulé." : "Capture du son impossible sur ce navigateur."); return; }
+  const tracks = stream.getAudioTracks();
+  if (!tracks.length) { stream.getTracks().forEach(t => t.stop()); reset(); setStatus("Aucun son partagé : choisissez « Cet onglet » et cochez « Partager l'audio de l'onglet ».", true); return; }
+  stream.getVideoTracks().forEach(t => t.stop());
+  const rec = new MediaRecorder(new MediaStream(tracks)), chunks = [];
+  rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  const stopped = new Promise(r => { rec.onstop = r; });
+  const my = ++listenRun; setListenUI(true); btn.classList.add("on"); btn.disabled = false; btn.disabled = true;
+  $("#goTxt").textContent = "Enregistrement… restez sur cet onglet"; setStatus("Enregistrement de la voix en cours…");
+  rec.start(); await new Promise(r => setTimeout(r, 350));
+  const ok = await speakAll(text, v, my);
+  await new Promise(r => setTimeout(r, 600)); rec.stop(); await stopped; tracks.forEach(t => t.stop()); setListenUI(false); reset();
+  if (!ok) { setStatus("Enregistrement interrompu."); return; }
+  try {
+    const buf = await audioCtx().decodeAudioData(await new Blob(chunks, { type: rec.mimeType || "audio/webm" }).arrayBuffer());
+    const n = buf.length, ch = buf.numberOfChannels, raw = new Float32Array(n);
+    for (let c = 0; c < ch; c++) { const d = buf.getChannelData(c); for (let i = 0; i < n; i++) raw[i] += d[i] / ch; }
+    let peak = 0; for (let i = 0; i < n; i++) { const a = Math.abs(raw[i]); if (a > peak) peak = a; }
+    if (peak < 0.01) { setStatus("Aucun son capté : cette voix n'est pas enregistrable. Choisissez une voix « Natural » (Edge) ou « Google français » (Chrome), ou utilisez le mode Pro.", true); return; }
+    const thr = peak * 0.04, pad = Math.round(buf.sampleRate * 0.15); let a0 = 0, b0 = n - 1;
+    while (a0 < n && Math.abs(raw[a0]) < thr) a0++; while (b0 > a0 && Math.abs(raw[b0]) < thr) b0--;
+    const pcm = raw.slice(Math.max(0, a0 - pad), Math.min(n, b0 + pad)), k = 0.95 / peak; for (let i = 0; i < pcm.length; i++) pcm[i] *= k;
+    const sr = buf.sampleRate, item = { id: Date.now(), pcm, sr, text, gender: state.gender, voiceId: state.gender, blob: pcmToWav(pcm, sr), origMp3: null, rec: true };
+    item.url = URL.createObjectURL(item.blob);
+    state.history.unshift(item); state.history = state.history.slice(0, 8);
+    loadItem(item, false); renderHistory();
+    setStatus("Voix de l'appareil enregistrée · " + fmtTime(pcm.length / sr) + " · prête à télécharger"); setPill("ready", "Enregistré");
+    setTimeout(() => $("#result").scrollIntoView({ behavior: "smooth", block: "nearest" }), 80);
+  } catch (e) { console.error(e); setStatus("L'enregistrement est illisible, réessayez.", true); }
+}
 
 /* ---------- Animations : curseur glissant, égaliseur, révélations ---------- */
 const segs = [...document.querySelectorAll(".seg")];
