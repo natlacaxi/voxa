@@ -322,14 +322,17 @@ footer{text-align:center;color:var(--mu);font-size:12px;padding:0 18px 30px}
       <div class="pro-grid">
         <div><span class="lab">Service de voix</span>
           <select id="prov" aria-label="Service">
+            <option value="voxa">Voxa · serveur (aucune clé à saisir)</option>
             <option value="gemini">Google Gemini · gratuit, sans carte</option>
             <option value="openai">OpenAI · voix très naturelles</option>
             <option value="elevenlabs">ElevenLabs · rendu studio</option>
             <option value="azure">Microsoft Azure · Denise &amp; Henri</option>
             <option value="google">Google Cloud · Neural2</option>
           </select></div>
-        <div><span class="lab">Clé API</span>
+        <div id="keyWrap"><span class="lab">Clé API</span>
           <input class="inp" id="key" type="password" autocomplete="off" spellcheck="false" placeholder="Collez votre clé ici"></div>
+        <div id="proxyWrap" hidden><span class="lab">Adresse du serveur Voxa</span>
+          <input class="inp" id="proxy" type="url" autocomplete="off" spellcheck="false" placeholder="https://voxa-tts.votre-compte.workers.dev"></div>
         <div id="regionWrap" hidden><span class="lab">Région Azure</span>
           <input class="inp" id="region" type="text" value="francecentral" autocomplete="off" spellcheck="false"></div>
         <div id="modelWrap" hidden><span class="lab">Modèle ElevenLabs</span>
@@ -85170,7 +85173,10 @@ async function synthOffline(text, gender){
 }
 
 /* ---------- Pro · voix cloud (votre clé API) ---------- */
+/* Adresse de votre Worker Cloudflare (voxa-worker.js). Renseignez-la ici une fois déployé : les visiteurs n'auront rien à saisir. */
+const PROXY_URL = "https://voxa.natla-caxi.workers.dev";
 const PROV = {
+  voxa:       { hint: "Voix ElevenLabs via votre serveur Cloudflare : la clé reste cachée côté serveur (variable VOXA_API). Voix : Rachel (femme) / Adam (homme)." },
   gemini:     { hint: "Clé gratuite sur aistudio.google.com/apikey avec un simple compte Google, sans carte bancaire. Limites gratuites serrées (quelques requêtes par minute et par jour). Voix : Kore (femme) / Orus (homme)." },
   openai:     { hint: "Clé sur platform.openai.com/api-keys · facturation à l'usage (quelques centimes par texte). Voix : Nova (femme) / Onyx (homme)." },
   elevenlabs: { hint: "Clé sur elevenlabs.io · offre gratuite limitée. Voix : Rachel (femme) / Adam (homme). « Économique » compte 2× moins de crédits par caractère. Vous pouvez coller l'ID d'une autre voix." },
@@ -85178,17 +85184,19 @@ const PROV = {
   google:     { hint: "Clé API avec « Cloud Text-to-Speech » activé · quota gratuit mensuel. Voix Neural2 : A (femme) / B (homme)." }
 };
 const CFG_KEY = "voxa-pro";
-function proCfg(){ return { prov: $("#prov").value, key: $("#key").value.trim(), region: ($("#region").value || "francecentral").trim().toLowerCase(), vid: $("#vid").value.trim(), model: $("#emodel").value }; }
+function proCfg(){ return { prov: $("#prov").value, key: $("#key").value.trim(), region: ($("#region").value || "francecentral").trim().toLowerCase(), vid: $("#vid").value.trim(), model: $("#emodel").value, proxy: ($("#proxy").value.trim() || PROXY_URL).replace(/\/+$/, "") }; }
 function saveCfg(){ try { if ($("#remember").checked) localStorage.setItem(CFG_KEY, JSON.stringify({ ...proCfg(), rem: 1 })); else localStorage.removeItem(CFG_KEY); } catch(e){} }
 function refreshProUI(){
   const pv = $("#prov").value; $("#hint").textContent = PROV[pv].hint;
-  $("#regionWrap").hidden = pv !== "azure"; $("#vidWrap").hidden = pv !== "elevenlabs"; $("#modelWrap").hidden = pv !== "elevenlabs";
+  $("#regionWrap").hidden = pv !== "azure"; const el = pv === "elevenlabs" || pv === "voxa";
+  $("#vidWrap").hidden = !el; $("#modelWrap").hidden = !el;
+  $("#keyWrap").hidden = pv === "voxa"; $("#proxyWrap").hidden = !(pv === "voxa" && !PROXY_URL);
 }
 (function(){
-  try { const c = JSON.parse(localStorage.getItem(CFG_KEY) || "null"); if (c) { $("#prov").value = c.prov || "openai"; $("#key").value = c.key || ""; $("#region").value = c.region || "francecentral"; $("#vid").value = c.vid || ""; if (c.model) $("#emodel").value = c.model; } } catch(e){}
+  try { const c = JSON.parse(localStorage.getItem(CFG_KEY) || "null"); if (c) { $("#prov").value = c.prov || "openai"; $("#key").value = c.key || ""; $("#region").value = c.region || "francecentral"; $("#vid").value = c.vid || ""; if (c.model) $("#emodel").value = c.model; if (c.proxy && c.proxy !== PROXY_URL) $("#proxy").value = c.proxy; } else if (PROXY_URL) $("#prov").value = "voxa"; } catch(e){}
   refreshProUI();
   $("#prov").addEventListener("change", () => { refreshProUI(); saveCfg(); });
-  ["#key", "#region", "#vid", "#emodel", "#remember"].forEach(id => $(id).addEventListener("change", saveCfg));
+  ["#key", "#region", "#vid", "#emodel", "#proxy", "#remember"].forEach(id => $(id).addEventListener("change", saveCfg));
 })();
 const fatal = m => { const e = new Error(m); e.fatal = true; return e; };
 function httpMsg(st, body){
@@ -85227,8 +85235,23 @@ async function geminiTts(text, f, key){
   }
   throw lastErr || new Error("Gemini n'a pas renvoyé d'audio.");
 }
+async function voxaTts(text, gender, cfg){
+  const url = cfg.proxy;
+  if (!/^https?:\/\//.test(url || "")) throw fatal("Renseignez l'adresse du serveur Voxa (Worker Cloudflare).");
+  let res;
+  try { res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, gender, model: cfg.model, vid: cfg.vid }) }); }
+  catch(e){ throw new Error("Impossible de joindre le serveur Voxa (adresse, réseau ou origine non autorisée)."); }
+  if (!res.ok) {
+    let m = ""; try { m = (await res.json()).error || ""; } catch(e){}
+    if (res.status === 403) throw fatal("Ce site n'est pas autorisé par le serveur Voxa (variable ALLOWED_ORIGINS).");
+    if (res.status === 429) return Promise.reject(httpMsg(429));
+    throw new Error(m || "Erreur du serveur Voxa (code " + res.status + ").");
+  }
+  return res.arrayBuffer();
+}
 async function cloudTts(text, gender, cfg){
   const { prov, key } = cfg, f = gender === "f";
+  if (prov === "voxa") return voxaTts(text, gender, cfg);
   if (!key) throw fatal("Ajoutez votre clé API dans les réglages « Pro ».");
   if (prov === "gemini") return geminiTts(text, f, key);
   let req;
