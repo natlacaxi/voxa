@@ -1,0 +1,51 @@
+{
+  "id": "./",
+  "name": "Voxa — Synthèse vocale française",
+  "short_name": "Voxa",
+  "description": "Texte en voix française, femme ou homme, à écouter et télécharger en MP3, AAC ou WAV.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#07060f",
+  "theme_color": "#07060f",
+  "lang": "fr",
+  "dir": "ltr",
+  "categories": [
+    "productivity",
+    "utilities",
+    "multimedia"
+  ],
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
